@@ -10,7 +10,7 @@ class PersianTTS:
     def __init__(self):
         self.temp_dir = tempfile.gettempdir()
         self.voice = "fa-IR-DilaraNeural"  # Persian female voice
-
+        
     async def synthesize_to_file(self, text: str, filename: str) -> str:
         """
         Generate speech for the given text and save it to the given filename.
