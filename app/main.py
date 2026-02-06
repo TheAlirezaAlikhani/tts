@@ -1,7 +1,8 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from app.speech_service import transcribe_audio
-from app.llm_service import llm
+from app.llm_service import llm, execute_function
 from tts import PersianTTS
+import json
 
 app = FastAPI()
 connections = []
@@ -44,13 +45,50 @@ async def audio_stream(websocket: WebSocket):
                         "content": user_text
                     })
                     
-                    # Get LLM response
+                    # Get LLM response (may include function calls)
                     llm_response = await llm.chat(
                         messages=conversation_history[connection_id],
                         reasoning=False
                     )
                     
-                    # Handle response (could be dict with reasoning_details or just string)
+                    # Handle function calls if present
+                    if isinstance(llm_response, dict) and 'tool_calls' in llm_response:
+                        # Add assistant message with tool calls to history
+                        assistant_message = {
+                            "role": "assistant",
+                            "content": llm_response.get('content', ''),
+                            "tool_calls": llm_response['tool_calls']
+                        }
+                        if 'reasoning_details' in llm_response:
+                            assistant_message['reasoning_details'] = llm_response['reasoning_details']
+                        conversation_history[connection_id].append(assistant_message)
+                        
+                        # Execute each function call
+                        for tool_call in llm_response['tool_calls']:
+                            function_name = tool_call['function']['name']
+                            try:
+                                arguments = json.loads(tool_call['function'].get('arguments', '{}'))
+                            except json.JSONDecodeError:
+                                arguments = {}
+                            
+                            # Execute the function
+                            function_result = await execute_function(function_name, arguments)
+                            
+                            # Add function result to conversation history
+                            conversation_history[connection_id].append({
+                                "role": "tool",
+                                "tool_call_id": tool_call['id'],
+                                "name": function_name,
+                                "content": function_result
+                            })
+                        
+                        # Get final response from LLM after function execution
+                        llm_response = await llm.chat(
+                            messages=conversation_history[connection_id],
+                            reasoning=False
+                        )
+                    
+                    # Handle final response
                     if isinstance(llm_response, dict):
                         assistant_content = llm_response.get('content', '')
                         # Preserve reasoning_details in history if present

@@ -53,53 +53,91 @@ def record_to_wav_bytes() -> bytes:
 
 
 async def main():
-    # uri = "ws://127.0.0.1:8000/audio"
-    uri = "wss://tts.liara.run/audio"
-    async with websockets.connect(uri) as websocket:
-        audio_bytes = record_to_wav_bytes()
-
-        await websocket.send(audio_bytes)
-        print("Audio sent, waiting for responses...")
-
-        # Server sends: 1) Transcription, 2) LLM response, 3) TTS audio
-        messages_received = 0
-        tts_audio = None
-        
-        while messages_received < 3:
-            try:
-                data = await websocket.recv()
-                messages_received += 1
-                
-                if isinstance(data, str):
-                    print(f"Message {messages_received}: {data}")
-                else:
-                    # This should be the TTS audio (bytes)
-                    tts_audio = data
-                    print(f"Message {messages_received}: Received TTS audio ({len(tts_audio)} bytes)")
-                    break  # Got the audio, we're done
+    uri = "ws://127.0.0.1:8000/audio"
+    # uri = "wss://tts.liara.run/audio"
+    
+    print("=" * 60)
+    print("Voice Chatbot - Continuous Conversation Mode")
+    print("=" * 60)
+    print("Press Ctrl+C to exit")
+    print()
+    
+    try:
+        async with websockets.connect(uri) as websocket:
+            print("✅ Connected to server. You can start speaking!")
+            print()
+            
+            conversation_count = 0
+            
+            while True:
+                try:
+                    conversation_count += 1
+                    print(f"\n--- Conversation {conversation_count} ---")
+                    print("Recording... Speak now.")
                     
-            except websockets.exceptions.ConnectionClosed:
-                print("Connection closed by server")
-                break
-            except Exception as e:
-                print(f"Error receiving message: {e}")
-                break
+                    # Record audio
+                    audio_bytes = record_to_wav_bytes()
+                    print("Recording finished. Sending to server...")
 
-        # Play TTS audio if we received it
-        if tts_audio:
-            temp_file = os.path.join(tempfile.gettempdir(), "ws_tts_reply.mp3")
-            with open(temp_file, "wb") as f:
-                f.write(tts_audio)
+                    # Send audio to server
+                    await websocket.send(audio_bytes)
 
-            print("Playing TTS audio...")
-            playsound(temp_file)
+                    # Server sends: 1) Transcription, 2) LLM response, 3) TTS audio
+                    messages_received = 0
+                    tts_audio = None
+                    
+                    while messages_received < 3:
+                        try:
+                            data = await websocket.recv()
+                            messages_received += 1
+                            
+                            if isinstance(data, str):
+                                print(f"📝 {data}")
+                            else:
+                                # This should be the TTS audio (bytes)
+                                tts_audio = data
+                                print(f"🔊 Received TTS audio ({len(tts_audio)} bytes)")
+                                break  # Got the audio, we're done
+                                
+                        except websockets.exceptions.ConnectionClosed:
+                            print("❌ Connection closed by server")
+                            return
+                        except Exception as e:
+                            print(f"❌ Error receiving message: {e}")
+                            break
 
-            try:
-                os.remove(temp_file)
-            except Exception:
-                pass
-        else:
-            print("No TTS audio received")
+                    # Play TTS audio if we received it
+                    if tts_audio:
+                        temp_file = os.path.join(tempfile.gettempdir(), f"ws_tts_reply_{conversation_count}.mp3")
+                        with open(temp_file, "wb") as f:
+                            f.write(tts_audio)
+
+                        print("🔊 Playing response...")
+                        playsound(temp_file)
+
+                        try:
+                            os.remove(temp_file)
+                        except Exception:
+                            pass
+                    
+                    print("\nReady for next message...")
+                    
+                except KeyboardInterrupt:
+                    print("\n\n👋 Exiting...")
+                    break
+                except Exception as e:
+                    print(f"❌ Error in conversation: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continue to next iteration
+                    continue
+                    
+    except KeyboardInterrupt:
+        print("\n\n👋 Goodbye!")
+    except Exception as e:
+        print(f"❌ Connection error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
