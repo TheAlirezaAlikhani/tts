@@ -66,13 +66,20 @@ async def audio_stream(websocket: WebSocket):
                         # Execute each function call
                         for tool_call in llm_response['tool_calls']:
                             function_name = tool_call['function']['name']
+                            print(f"[Function Call] Executing: {function_name}")
                             try:
-                                arguments = json.loads(tool_call['function'].get('arguments', '{}'))
-                            except json.JSONDecodeError:
+                                arguments_str = tool_call['function'].get('arguments', '{}')
+                                print(f"[Function Call] Arguments: {arguments_str}")
+                                arguments = json.loads(arguments_str)
+                            except json.JSONDecodeError as e:
+                                print(f"[Function Call] JSON decode error: {e}")
                                 arguments = {}
                             
                             # Execute the function
+                            print(f"[Function Call] Calling execute_function({function_name}, {arguments})")
                             function_result = await execute_function(function_name, arguments)
+                            print(f"[Function Call] Result length: {len(function_result)} characters")
+                            print(f"[Function Call] Result preview: {function_result[:200]}...")
                             
                             # Add function result to conversation history
                             conversation_history[connection_id].append({
