@@ -281,7 +281,7 @@ class OpenRouterLLM:
 # Initialize LLM with API key from environment or default
 OPENROUTER_API_KEY = os.getenv(
     "OPENROUTER_API_KEY",
-    "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"
+    "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"
 )
 
 llm = OpenRouterLLM(api_key=OPENROUTER_API_KEY)

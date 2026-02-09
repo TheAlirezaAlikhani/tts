@@ -53,8 +53,8 @@ def record_to_wav_bytes() -> bytes:
 
 
 async def main():
-    uri = "ws://127.0.0.1:8000/audio"
-    # uri = "wss://tts.liara.run/audio"
+    # uri = "ws://127.0.0.1:8000/audio"
+    uri = "wss://tts.liara.run/audio"
     
     print("=" * 60)
     print("Voice Chatbot - Continuous Conversation Mode")

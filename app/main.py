@@ -1,15 +1,46 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from app.speech_service import transcribe_audio
-from app.llm_service import llm, execute_function
-from tts import PersianTTS
+import re
 import json
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from app.speech_service import transcribe_audio
+from app.core.llm_service import llm
+from app.config import get_active_module
+from tts import PersianTTS
 
 app = FastAPI()
 connections = []
 tts_engine = PersianTTS()
 
+# بارگذاری ماژول فعال
+active_module = get_active_module()
+
 # Store conversation history per WebSocket connection
 conversation_history: dict = {}
+
+
+@app.get("/data")
+async def get_excel_data():
+    """
+    REST API endpoint برای دریافت تمام داده‌های فایل اکسل ماژول فعال
+    برای استفاده در اپلیکیشن‌های frontend
+    """
+    try:
+        result = await active_module.get_excel_data()
+        
+        if result.get("status") == "error":
+            raise HTTPException(
+                status_code=404 if "یافت نشد" in result.get("message", "") else 500,
+                detail=result.get("message", "خطای نامشخص")
+            )
+        
+        return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"خطا در خواندن داده‌ها: {str(e)}"
+        )
 
 
 @app.websocket("/audio")
@@ -23,7 +54,7 @@ async def audio_stream(websocket: WebSocket):
         conversation_history[connection_id] = [
             {
                 "role": "system",
-                "content": "شما یک دستیار صوتی فارسی هستید. پاسخ‌های خود را کوتاه (حداکثر 2-3 جمله)، فقط به فارسی و بدون ایموجی بنویسید."
+                "content": active_module.system_prompt
             }
         ]
 
@@ -45,10 +76,14 @@ async def audio_stream(websocket: WebSocket):
                         "content": user_text
                     })
                     
+                    # ترکیب توابع مشترک با توابع اختصاصی ماژول
+                    all_functions = active_module.get_common_functions() + active_module.functions
+                    
                     # Get LLM response (may include function calls)
                     llm_response = await llm.chat(
                         messages=conversation_history[connection_id],
-                        reasoning=False
+                        reasoning=False,
+                        tools=all_functions  # استفاده از توابع مشترک + توابع ماژول فعال
                     )
                     
                     # Handle function calls if present
@@ -63,7 +98,7 @@ async def audio_stream(websocket: WebSocket):
                             assistant_message['reasoning_details'] = llm_response['reasoning_details']
                         conversation_history[connection_id].append(assistant_message)
                         
-                        # Execute each function call
+                        # Execute each function call using the active module
                         for tool_call in llm_response['tool_calls']:
                             function_name = tool_call['function']['name']
                             print(f"[Function Call] Executing: {function_name}")
@@ -75,9 +110,9 @@ async def audio_stream(websocket: WebSocket):
                                 print(f"[Function Call] JSON decode error: {e}")
                                 arguments = {}
                             
-                            # Execute the function
-                            print(f"[Function Call] Calling execute_function({function_name}, {arguments})")
-                            function_result = await execute_function(function_name, arguments)
+                            # Execute the function using active module
+                            print(f"[Function Call] Calling {active_module.name}.execute_function({function_name}, {arguments})")
+                            function_result = await active_module.execute_function(function_name, arguments)
                             print(f"[Function Call] Result length: {len(function_result)} characters")
                             print(f"[Function Call] Result preview: {function_result[:200]}...")
                             
@@ -90,9 +125,12 @@ async def audio_stream(websocket: WebSocket):
                             })
                         
                         # Get final response from LLM after function execution
+                        # ترکیب توابع مشترک با توابع اختصاصی ماژول
+                        all_functions = active_module.get_common_functions() + active_module.functions
                         llm_response = await llm.chat(
                             messages=conversation_history[connection_id],
-                            reasoning=False
+                            reasoning=False,
+                            tools=all_functions
                         )
                     
                     # Handle final response
@@ -124,7 +162,6 @@ async def audio_stream(websocket: WebSocket):
                 # 3. تبدیل پاسخ LLM به گفتار و ارسال صوت
                 try:
                     # Clean text: remove emojis and special characters
-                    import re
                     # Remove English text (keep only Persian/Arabic)
                     cleaned_content = re.sub(r'[A-Za-z]+', '', assistant_content)
                     # Remove emojis and special unicode
