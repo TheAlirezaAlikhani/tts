@@ -80,7 +80,7 @@ DEFAULT_MODE = "camera"
 
 
 client = genai.Client(
-    api_key='AIzaSyAci0goLhrBMBV5ox-fkIMM4x6E7JVndLs',
+    api_key='*****',
     http_options={"api_version": "v1beta"},
 )
 

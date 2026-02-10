@@ -40,7 +40,7 @@ DEFAULT_MODE = "none"
 
 client = genai.Client(
     http_options={"api_version": "v1beta"},
-    api_key='AIzaSyAci0goLhrBMBV5ox-fkIMM4x6E7JVndLs',
+    api_key='****',
 )
 
 tools = [
