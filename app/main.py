@@ -2,6 +2,12 @@ import re
 import json
 import asyncio
 import pyaudio
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
 from app.config import get_active_module, get_module_name_from_token
 from app.modules.registry import get_module_by_name

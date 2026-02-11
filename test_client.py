@@ -46,7 +46,7 @@ async def play_audio_stream(audio_queue: asyncio.Queue):
 
 
 async def main():
-    uri = "ws://127.0.0.1:8000/audio?token=internet_sales_token_ghi789rst"
+    uri = "ws://127.0.0.1:8000/audio?token=hospital_token_abc123xyz"
     # uri = "wss://tts.liara.run/audio"
     
     print("=" * 60)
